@@ -649,6 +649,8 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // test hook for automated playtests (read-only state)
+// M toggles sound (added in IntelliJ IDEA)
+window.addEventListener("keydown", e => { if ("mM".includes(e.key)) { soundOn = !soundOn; $("soundBtn").textContent = soundOn ? "Sound: on" : "Sound: off"; } });
 window.__game = {
   get state() { return ["MENU", "PLAYING", "PAUSED", "OVER"][state]; },
   get score() { return score; },

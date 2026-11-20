@@ -16,6 +16,7 @@ far you can fly before the clouds catch you.
 | Drag (touch / mouse) | Steer |
 | `P` / `Esc` | Pause |
 | `R` | Restart |
+| `M` | Mute / unmute sound |
 | `Enter` | Start |
 
 - **★ Stars** — collect for +10 points each.
