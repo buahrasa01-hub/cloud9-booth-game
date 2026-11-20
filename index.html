@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cloud Rider — Cloud9 Booth Arcade</title>
+<style>
+  :root {
+    --navy: #0b1e3a;
+    --sky: #123a6b;
+    --accent: #ff7a1a;
+    --accent-soft: #ffb347;
+    --cloud: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--navy); }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    color: #fff;
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+  }
+  #wrap { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 20px;
+    background: radial-gradient(ellipse at center, rgba(11,30,58,.25) 0%, rgba(11,30,58,.72) 100%);
+    z-index: 5;
+  }
+  .hidden { display: none !important; }
+  .badge {
+    font-size: 13px; letter-spacing: .35em; text-transform: uppercase;
+    color: var(--accent-soft); font-weight: 700; margin-bottom: 10px;
+  }
+  h1 {
+    font-size: clamp(42px, 9vw, 84px); line-height: .95; font-weight: 900;
+    letter-spacing: -1px; text-shadow: 0 6px 24px rgba(0,0,0,.45);
+  }
+  h1 span { color: var(--accent); }
+  .sub { margin-top: 12px; font-size: clamp(15px, 2.6vw, 20px); opacity: .92; max-width: 560px; }
+  .btn {
+    margin-top: 26px; cursor: pointer; border: none; border-radius: 999px;
+    background: var(--accent); color: #fff;
+    font-size: clamp(17px, 2.6vw, 21px); font-weight: 800; letter-spacing: .04em;
+    padding: 15px 44px; box-shadow: 0 10px 28px rgba(255,122,26,.45);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 14px 34px rgba(255,122,26,.55); }
+  .btn:active { transform: scale(.98); }
+  .btn.ghost {
+    background: rgba(255,255,255,.12); box-shadow: none;
+    border: 2px solid rgba(255,255,255,.55); padding: 11px 30px; font-size: 15px;
+  }
+  .keys { margin-top: 22px; font-size: 14px; opacity: .85; line-height: 1.9; }
+  .keys b {
+    display: inline-block; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35);
+    border-radius: 6px; padding: 1px 9px; margin: 0 2px; font-weight: 700;
+  }
+  #finalScore { font-size: clamp(30px, 6vw, 52px); font-weight: 900; color: var(--accent-soft); margin-top: 6px; }
+  #bestLine { margin-top: 8px; font-size: 16px; opacity: .9; }
+  #newBest {
+    margin-top: 10px; display: inline-block; background: #ffd23f; color: #3a2500;
+    font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 6px 16px; border-radius: 999px;
+  }
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 4;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 14px 18px; pointer-events: none;
+    font-weight: 800; text-shadow: 0 2px 8px rgba(0,0,0,.5);
+  }
+  #hud .score { font-size: clamp(22px, 4vw, 34px); }
+  #hud .score small { display: block; font-size: 11px; letter-spacing: .3em; opacity: .85; font-weight: 700; }
+  #hud .right { text-align: right; font-size: clamp(14px, 2.4vw, 18px); line-height: 1.5; }
+  #hud .lives { color: #ff5b6e; letter-spacing: 2px; font-size: clamp(18px, 3vw, 24px); }
+  #toast {
+    position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+    font-size: clamp(20px, 4vw, 32px); font-weight: 900; color: var(--accent-soft);
+    text-shadow: 0 3px 12px rgba(0,0,0,.6); opacity: 0; transition: opacity .2s; z-index: 4;
+    pointer-events: none;
+  }
+  #credit {
+    position: absolute; bottom: 10px; left: 0; right: 0; text-align: center;
+    font-size: 12px; opacity: .6; z-index: 4; pointer-events: none;
+  }
+  #soundBtn {
+    position: absolute; bottom: 12px; right: 14px; z-index: 6; cursor: pointer;
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.4); color: #fff;
+    border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="score"><small>SCORE</small><span id="scoreVal">0</span></div>
+    <div class="right">
+      <div class="lives" id="livesVal">♥♥♥</div>
+      <div id="speedVal">SPEED ×1.0</div>
+      <div id="bestVal">BEST 0</div>
+    </div>
+  </div>
+  <div id="toast"></div>
+
+  <!-- MENU -->
+  <div id="menu" class="overlay">
+    <div class="badge">Cloud9 &middot; Booth Arcade</div>
+    <h1>CLOUD<br><span>RIDER</span></h1>
+    <p class="sub">Ride the sky. Dodge the storm, grab the stars, and see how far
+      you can fly before the clouds catch you.</p>
+    <button class="btn" id="startBtn">▶&nbsp; FLY NOW</button>
+    <div class="keys">
+      <b>↑ ↓ ← →</b> or <b>W A S D</b> to fly &nbsp;·&nbsp; <b>drag</b> on touch<br>
+      <b>P</b> pause &nbsp;·&nbsp; <b>R</b> restart &nbsp;·&nbsp; grab <b>★</b> for +10
+    </div>
+  </div>
+
+  <!-- GAME OVER -->
+  <div id="gameover" class="overlay hidden">
+    <div class="badge">Flight over</div>
+    <h1>GAME<br><span>OVER</span></h1>
+    <div id="finalScore">0</div>
+    <div id="bestLine">Best: 0</div>
+    <div id="newBest" class="hidden">★ New best! ★</div>
+    <button class="btn" id="retryBtn">↻&nbsp; FLY AGAIN</button>
+    <button class="btn ghost" id="menuBtn">Back to menu</button>
+  </div>
+
+  <!-- PAUSE -->
+  <div id="pause" class="overlay hidden">
+    <div class="badge">Paused</div>
+    <h1>TAKE A<br><span>BREATHER</span></h1>
+    <button class="btn" id="resumeBtn">▶&nbsp; RESUME</button>
+  </div>
+
+  <button id="soundBtn">♪ Sound: on</button>
+  <div id="credit">Cloud Rider · a Cloud9 booth mini-game · built with IntelliJ IDEA</div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   CLOUD RIDER — a Cloud9 booth arcade mini-game
+   Single file, no dependencies, no external assets.
+   Everything is drawn with canvas vector shapes.
+   ============================================================ */
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const $ = (id) => document.getElementById(id);
+const menuEl = $("menu"), overEl = $("gameover"), pauseEl = $("pause"),
+      hudEl = $("hud"), scoreVal = $("scoreVal"), livesVal = $("livesVal"),
+      speedVal = $("speedVal"), bestVal = $("bestVal"),
+      finalScoreEl = $("finalScore"), bestLineEl = $("bestLine"),
+      newBestEl = $("newBest"), toastEl = $("toast");
+
+// ---------- dimensions ----------
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+// ---------- audio (tiny WebAudio synth, no files) ----------
+let audioCtx = null, soundOn = true;
+function beep(freq, dur, type, vol) {
+  if (!soundOn) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type || "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || 0.12, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch (e) { /* audio unavailable — game still works */ }
+}
+const sfx = {
+  star:  () => { beep(880, .12, "sine", .14); setTimeout(() => beep(1318, .16, "sine", .12), 60); },
+  hit:   () => { beep(160, .3, "sawtooth", .16); },
+  shield:() => { beep(520, .2, "triangle", .14); },
+  over:  () => { [440, 349, 293, 220].forEach((f, i) => setTimeout(() => beep(f, .25, "triangle", .14), i * 160)); },
+  start: () => { [262, 392, 523].forEach((f, i) => setTimeout(() => beep(f, .12, "triangle", .12), i * 80)); },
+};
+$("soundBtn").addEventListener("click", () => {
+  soundOn = !soundOn;
+  $("soundBtn").textContent = soundOn ? "♪ Sound: on" : "♪ Sound: off";
+});
+
+// ---------- game state ----------
+const STATE = { MENU: 0, PLAYING: 1, PAUSED: 2, OVER: 3 };
+let state = STATE.MENU;
+let score = 0, best = 0, lives = 3;
+let distance = 0, elapsed = 0;
+let spawnTimer = 0, starTimer = 0, shieldTimer = 0;
+let shake = 0, flash = 0;
+let shieldUntil = 0, invincibleUntil = 0;
+try { best = parseInt(localStorage.getItem("cloudrider_best") || "0", 10) || 0; } catch (e) {}
+
+const obstacles = [];   // storm clouds, birds, bolts
+const stars = [];
+const pickups = [];
+const particles = [];
+const clouds = [];      // parallax background clouds
+
+// player: a little cloud-plane
+const player = {
+  x: 0, y: 0, vx: 0, vy: 0, r: 26,
+  tx: 0, ty: 0,            // touch target
+  tilt: 0,
+};
+function resetPlayer() {
+  player.x = Math.max(90, W * 0.18);
+  player.y = H * 0.5; player.vx = 0; player.vy = 0;
+  player.tx = player.x; player.ty = player.y; player.tilt = 0;
+}
+resetPlayer();
+
+// ---------- helpers ----------
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const TAU = Math.PI * 2;
+
+function showToast(text) {
+  toastEl.textContent = text;
+  toastEl.style.opacity = 1;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { toastEl.style.opacity = 0; }, 900);
+}
+
+function speedFactor() { return 1 + Math.min(elapsed / 45, 1.6); } // up to 2.6x
+function baseSpeed() { return (260 + Math.min(elapsed * 4, 320)) ; }
+
+// ---------- background clouds ----------
+function initClouds() {
+  clouds.length = 0;
+  const n = Math.ceil(W / 130) + 4;
+  for (let i = 0; i < n; i++) {
+    clouds.push({
+      x: rand(0, W), y: rand(0, H * 0.9),
+      s: rand(.5, 1.4), v: rand(12, 42), a: rand(.10, .30),
+    });
+  }
+}
+initClouds();
+
+// ---------- spawning ----------
+function spawnObstacle() {
+  const f = speedFactor();
+  const roll = Math.random();
+  const y = rand(50, H - 50);
+  if (roll < 0.45) {           // storm cloud — big, slow, drifting
+    obstacles.push({ kind: "storm", x: W + 90, y, r: rand(34, 52),
+      vx: baseSpeed() * rand(.7, .9), bob: rand(0, TAU), bobAmp: rand(8, 26), t: 0 });
+  } else if (roll < 0.8) {    // bird — medium, sine flight
+    obstacles.push({ kind: "bird", x: W + 60, y, r: rand(20, 28),
+      vx: baseSpeed() * rand(.95, 1.15), bob: rand(0, TAU), bobAmp: rand(20, 46), t: 0 });
+  } else {                     // lightning bolt — fast, narrow
+    obstacles.push({ kind: "bolt", x: W + 40, y, r: 22,
+      vx: baseSpeed() * rand(1.35, 1.6), bob: 0, bobAmp: 0, t: 0 });
+  }
+}
+function spawnStar() {
+  stars.push({ x: W + 30, y: rand(40, H - 40), r: 15, t: rand(0, TAU), got: false });
+}
+function spawnShield() {
+  pickups.push({ kind: "shield", x: W + 40, y: rand(60, H - 60), r: 20, t: 0 });
+}
+
+// ---------- particles ----------
+function burst(x, y, color, n, spd) {
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, TAU), v = rand(spd * .3, spd);
+    particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+      life: rand(.35, .8), max: .8, color, r: rand(2, 5) });
+  }
+}
+
+// ---------- drawing ----------
+function drawCloudShape(x, y, s, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, 22 * s, 0, TAU);
+  ctx.arc(x + 20 * s, y - 8 * s, 18 * s, 0, TAU);
+  ctx.arc(x + 42 * s, y, 20 * s, 0, TAU);
+  ctx.arc(x + 20 * s, y + 8 * s, 18 * s, 0, TAU);
+  ctx.fill();
+}
+
+function drawSky() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#0b1e3a");
+  g.addColorStop(.55, "#14467f");
+  g.addColorStop(1, "#2b6cb0");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  // sun / moon glow
+  const sg = ctx.createRadialGradient(W * 0.82, H * 0.16, 10, W * 0.82, H * 0.16, 190);
+  sg.addColorStop(0, "rgba(255, 190, 90, .55)");
+  sg.addColorStop(1, "rgba(255, 190, 90, 0)");
+  ctx.fillStyle = sg;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#ffd98a";
+  ctx.beginPath(); ctx.arc(W * 0.82, H * 0.16, 34, 0, TAU); ctx.fill();
+  // parallax clouds
+  for (const c of clouds) {
+    ctx.globalAlpha = c.a;
+    drawCloudShape(c.x, c.y, c.s, "#ffffff");
+  }
+  ctx.globalAlpha = 1;
+  // distant mountains
+  ctx.fillStyle = "rgba(8, 22, 46, .55)";
+  ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x <= W; x += 90) ctx.lineTo(x, H - 60 - Math.sin(x * 0.006 + 2) * 34);
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+}
+
+function drawPlayer() {
+  const p = player;
+  const blink = (performance.now() < invincibleUntil) && Math.floor(performance.now() / 90) % 2 === 0;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.tilt * 0.25);
+  if (blink) ctx.globalAlpha = 0.35;
+  // little jet flame
+  const flame = 14 + Math.sin(performance.now() / 40) * 5;
+  ctx.fillStyle = "#ff9a3c";
+  ctx.beginPath();
+  ctx.moveTo(-26, -6); ctx.lineTo(-26 - flame, 0); ctx.lineTo(-26, 6);
+  ctx.closePath(); ctx.fill();
+  // body: cloud-plane
+  drawCloudShape(-8, 0, 1.05, "#ffffff");
+  ctx.fillStyle = "#ff7a1a";
+  ctx.beginPath(); ctx.arc(6, -4, 7, 0, TAU); ctx.fill();   // cockpit window
+  ctx.fillStyle = "#123a6b";
+  ctx.beginPath(); ctx.arc(8, -4, 3.4, 0, TAU); ctx.fill();
+  // wing
+  ctx.fillStyle = "#e8f1ff";
+  ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(-22, 20); ctx.lineTo(-2, 16); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // shield ring
+  if (performance.now() < shieldUntil) {
+    ctx.strokeStyle = "rgba(120, 220, 255, .9)";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 14 + Math.sin(performance.now() / 120) * 3, 0, TAU); ctx.stroke();
+  }
+}
+
+function drawObstacle(o) {
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  if (o.kind === "storm") {
+    drawCloudShape(-10, 0, o.r / 26, "#5b6478");
+    drawCloudShape(-10, 0, o.r / 26, "rgba(40,46,66,.85)");
+    ctx.fillStyle = "#ffd23f";
+    ctx.beginPath();
+    ctx.moveTo(-4, 6); ctx.lineTo(-14, 30); ctx.lineTo(-4, 30); ctx.lineTo(-12, 52); ctx.lineTo(8, 16); ctx.lineTo(-2, 16); ctx.lineTo(6, 6);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.font = "bold 20px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("!", 0, -o.r * 0.55);
+  } else if (o.kind === "bird") {
+    ctx.fillStyle = "#1d2b45";
+    const flap = Math.sin(o.t * 14) * 8;
+    ctx.beginPath(); ctx.ellipse(0, 0, 20, 9, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-6, -4); ctx.lineTo(-20, -16 - flap); ctx.lineTo(-2, -2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-6, 4); ctx.lineTo(-20, 16 + flap); ctx.lineTo(-2, 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#ffb347";
+    ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(28, -3); ctx.lineTo(28, 3); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(10, -3, 3, 0, TAU); ctx.fill();
+  } else { // bolt
+    ctx.fillStyle = "#ffe14d";
+    ctx.shadowColor = "#ffe14d"; ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.moveTo(4, -34); ctx.lineTo(-10, 4); ctx.lineTo(0, 4); ctx.lineTo(-6, 34); ctx.lineTo(12, -6); ctx.lineTo(2, -6);
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
+function drawStar(s) {
+  const pulse = 1 + Math.sin(s.t * 4) * 0.12;
+  ctx.save();
+  ctx.translate(s.x, s.y); ctx.scale(pulse, pulse);
+  ctx.fillStyle = "#ffd23f";
+  ctx.shadowColor = "#ffd23f"; ctx.shadowBlur = 14;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 15 : 6.5, a = -Math.PI / 2 + i * Math.PI / 5;
+    ctx[i === 0 ? "moveTo" : "lineTo"](Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawPickup(pk) {
+  ctx.save();
+  ctx.translate(pk.x, pk.y);
+  ctx.fillStyle = "rgba(120, 220, 255, .25)";
+  ctx.beginPath(); ctx.arc(0, 0, 24, 0, TAU); ctx.fill();
+  ctx.strokeStyle = "#78dcff"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, 18, 0, TAU); ctx.stroke();
+  ctx.fillStyle = "#78dcff";
+  ctx.font = "bold 16px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("S", 0, 1);
+  ctx.restore();
+}
+
+// ---------- update ----------
+const keys = {};
+window.addEventListener("keydown", (e) => {
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === "p" || e.key === "P" || e.key === "Escape") togglePause();
+  if ((e.key === "r" || e.key === "R") && state !== STATE.MENU) startGame();
+  if (e.key === "Enter" && (state === STATE.MENU || state === STATE.OVER)) startGame();
+});
+window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
+
+let dragging = false;
+function pointerPos(e) {
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX, y: t.clientY };
+}
+canvas.addEventListener("pointerdown", (e) => {
+  dragging = true;
+  const p = pointerPos(e);
+  player.tx = clamp(p.x, 30, W - 30); player.ty = clamp(p.y, 30, H - 30);
+});
+window.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+  const p = pointerPos(e);
+  player.tx = clamp(p.x, 30, W - 30); player.ty = clamp(p.y, 30, H - 30);
+});
+window.addEventListener("pointerup", () => { dragging = false; });
+
+function update(dt) {
+  const now = performance.now();
+  elapsed += dt;
+  distance += baseSpeed() * dt;
+  score = Math.floor(distance / 50) + (scoreStars * 10);
+
+  // player movement: keyboard velocity, touch target lerp
+  const ACC = 2600, MAXV = 620;
+  if (keys["arrowup"] || keys["w"]) player.vy -= ACC * dt;
+  if (keys["arrowdown"] || keys["s"]) player.vy += ACC * dt;
+  if (keys["arrowleft"] || keys["a"]) player.vx -= ACC * dt;
+  if (keys["arrowright"] || keys["d"]) player.vx += ACC * dt;
+  if (dragging) {
+    player.vx += (player.tx - player.x) * 14 * dt;
+    player.vy += (player.ty - player.y) * 14 * dt;
+  }
+  player.vx *= Math.pow(0.0015, dt); // damping
+  player.vy *= Math.pow(0.0015, dt);
+  player.vx = clamp(player.vx, -MAXV, MAXV);
+  player.vy = clamp(player.vy, -MAXV, MAXV);
+  player.x = clamp(player.x + player.vx * dt, 30, W - 30);
+  player.y = clamp(player.y + player.vy * dt, 30, H - 30);
+  player.tilt = clamp(player.vy / MAXV, -1, 1);
+
+  // background clouds drift
+  for (const c of clouds) {
+    c.x -= (c.v + baseSpeed() * 0.12) * dt;
+    if (c.x < -120) { c.x = W + 120; c.y = rand(0, H * 0.9); }
+  }
+
+  // spawning
+  spawnTimer -= dt;
+  const interval = Math.max(0.55, 1.35 - elapsed * 0.012);
+  if (spawnTimer <= 0) { spawnObstacle(); spawnTimer = interval * rand(0.8, 1.25); }
+  starTimer -= dt;
+  if (starTimer <= 0) { spawnStar(); starTimer = rand(0.7, 1.4); }
+  shieldTimer -= dt;
+  if (shieldTimer <= 0) { spawnShield(); shieldTimer = rand(14, 22); }
+
+  // obstacles
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const o = obstacles[i];
+    o.t += dt;
+    o.x -= o.vx * dt;
+    if (o.bobAmp) o.y += Math.sin(o.t * 2.2 + o.bob) * o.bobAmp * dt;
+    o.y = clamp(o.y, 30, H - 30);
+    if (o.x < -100) { obstacles.splice(i, 1); continue; }
+    const dx = o.x - player.x, dy = o.y - player.y;
+    const rr = o.r * 0.8 + player.r * 0.75;
+    if (dx * dx + dy * dy < rr * rr) {
+      if (now < shieldUntil) {
+        burst(o.x, o.y, "#78dcff", 18, 260);
+        obstacles.splice(i, 1);
+        sfx.shield(); showToast("SHIELD BLOCK!");
+        continue;
+      }
+      if (now < invincibleUntil) continue;
+      hitPlayer(o);
+      obstacles.splice(i, 1);
+    }
+  }
+  // stars
+  for (let i = stars.length - 1; i >= 0; i--) {
+    const s = stars[i];
+    s.t += dt;
+    s.x -= baseSpeed() * 1.05 * dt;
+    if (s.x < -40) { stars.splice(i, 1); continue; }
+    const dx = s.x - player.x, dy = s.y - player.y;
+    const rr = s.r + player.r * 0.8;
+    if (dx * dx + dy * dy < rr * rr) {
+      scoreStars++;
+      burst(s.x, s.y, "#ffd23f", 12, 200);
+      sfx.star();
+      stars.splice(i, 1);
+    }
+  }
+  // shield pickups
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const pk = pickups[i];
+    pk.t += dt;
+    pk.x -= baseSpeed() * 0.9 * dt;
+    if (pk.x < -40) { pickups.splice(i, 1); continue; }
+    const dx = pk.x - player.x, dy = pk.y - player.y;
+    const rr = pk.r + player.r * 0.8;
+    if (dx * dx + dy * dy < rr * rr) {
+      shieldUntil = now + 6000;
+      burst(pk.x, pk.y, "#78dcff", 16, 220);
+      sfx.shield(); showToast("SHIELD UP!");
+      pickups.splice(i, 1);
+    }
+  }
+  // particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  if (shake > 0) shake = Math.max(0, shake - dt * 30);
+  updateHUD();
+}
+
+let scoreStars = 0;
+function hitPlayer(o) {
+  const now = performance.now();
+  lives--;
+  shake = 14;
+  burst(player.x, player.y, "#ff5b6e", 22, 300);
+  sfx.hit();
+  updateHUD();
+  if (lives <= 0) {
+    gameOver();
+  } else {
+    invincibleUntil = now + 1800;
+    showToast(lives === 2 ? "OUCH! 2 lives left" : "LAST LIFE!");
+  }
+}
+
+function updateHUD() {
+  scoreVal.textContent = score;
+  livesVal.textContent = "♥".repeat(Math.max(lives, 0)) + "♡".repeat(Math.max(3 - lives, 0));
+  speedVal.textContent = "SPEED ×" + speedFactor().toFixed(1);
+  bestVal.textContent = "BEST " + Math.max(best, score);
+}
+
+// ---------- flow ----------
+function startGame() {
+  score = 0; scoreStars = 0; lives = 3; distance = 0; elapsed = 0;
+  spawnTimer = 0.6; starTimer = 0.4; shieldTimer = 12;
+  obstacles.length = 0; stars.length = 0; pickups.length = 0; particles.length = 0;
+  shieldUntil = 0; invincibleUntil = 0; shake = 0;
+  resetPlayer();
+  state = STATE.PLAYING;
+  menuEl.classList.add("hidden");
+  overEl.classList.add("hidden");
+  pauseEl.classList.add("hidden");
+  hudEl.classList.remove("hidden");
+  updateHUD();
+  sfx.start();
+}
+function gameOver() {
+  state = STATE.OVER;
+  sfx.over();
+  const isBest = score > best;
+  if (isBest) {
+    best = score;
+    try { localStorage.setItem("cloudrider_best", String(best)); } catch (e) {}
+  }
+  finalScoreEl.textContent = score;
+  bestLineEl.textContent = "Best: " + best;
+  newBestEl.classList.toggle("hidden", !isBest);
+  hudEl.classList.add("hidden");
+  overEl.classList.remove("hidden");
+}
+function togglePause() {
+  if (state === STATE.PLAYING) {
+    state = STATE.PAUSED;
+    pauseEl.classList.remove("hidden");
+  } else if (state === STATE.PAUSED) {
+    state = STATE.PLAYING;
+    pauseEl.classList.add("hidden");
+  }
+}
+function toMenu() {
+  state = STATE.MENU;
+  overEl.classList.add("hidden");
+  pauseEl.classList.add("hidden");
+  hudEl.classList.add("hidden");
+  menuEl.classList.remove("hidden");
+  resetPlayer();
+}
+
+$("startBtn").addEventListener("click", startGame);
+$("retryBtn").addEventListener("click", startGame);
+$("resumeBtn").addEventListener("click", togglePause);
+$("menuBtn").addEventListener("click", toMenu);
+
+// ---------- render loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  ctx.save();
+  if (shake > 0) ctx.translate(rand(-shake, shake) * 0.5, rand(-shake, shake) * 0.5);
+  drawSky();
+  if (state === STATE.PLAYING) update(dt);
+  for (const s of stars) drawStar(s);
+  for (const pk of pickups) drawPickup(pk);
+  for (const o of obstacles) drawObstacle(o);
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(p.life / p.max, 0);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (state !== STATE.MENU) drawPlayer();
+  ctx.restore();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// test hook for automated playtests (read-only state)
+window.__game = {
+  get state() { return ["MENU", "PLAYING", "PAUSED", "OVER"][state]; },
+  get score() { return score; },
+  get lives() { return lives; },
+  get best() { return best; },
+  start: startGame,
+};
+</script>
+</body>
+</html>
+
